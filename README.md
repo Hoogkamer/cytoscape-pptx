@@ -1,6 +1,8 @@
 # cytoscape-pptx
 
-pptx export for cytoscape
+Enables the export of a cytoscape graph to powerpoint
+
+## install
 
 install cytoscape https://js.cytoscape.org
 
@@ -11,6 +13,8 @@ install cytoscape-pptx:
 ```
 npm install cytoscape-pptx
 ```
+
+## usage example
 
 ```javascript
 import pptxgen from "pptxgenjs";
