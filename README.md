@@ -6,6 +6,12 @@ install cytoscape https://js.cytoscape.org
 
 install pptxgenjs https://github.com/gitbrent/PptxGenJS
 
+install cytoscape-pptx:
+
+```
+npm install cytoscape-pptx
+```
+
 ```javascript
 import pptxgen from "pptxgenjs";
 import pptxAddSlide from "cytoscape-pptx";

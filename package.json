@@ -20,5 +20,19 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "description": "pptx export for cytoscape",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hoogkamer/cytoscape-pptx.git"
+  },
+  "keywords": [
+    "cytoscape"
+  ],
+  "author": "hoogkamer",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Hoogkamer/cytoscape-pptx/issues"
+  },
+  "homepage": "https://github.com/Hoogkamer/cytoscape-pptx#readme"
 }
