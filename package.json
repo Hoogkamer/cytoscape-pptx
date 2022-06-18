@@ -1,6 +1,6 @@
 {
-  "name": "rollup-starter-lib",
-  "version": "1.0.0",
+  "name": "cytoscape-pptx",
+  "version": "0.3.0",
   "main": "dist/pptx.cjs.js",
   "module": "dist/pptx.esm.js",
   "browser": "dist/pptx.umd.js",
