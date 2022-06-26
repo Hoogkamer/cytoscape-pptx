@@ -59,7 +59,8 @@ function drawEdges(slide, edges, scale, bbx) {
         ...getLabelLocation(bbx, e.midpoint(), scale),
         fill: { color: "#FFFFFF" },
         align: "center",
-        fontSize: px2Num(edgeStyle.fontSize) - 4,
+        margin: 0,
+        fontSize: px2Num(edgeStyle.fontSize) - 5,
       });
     }
   });
@@ -84,7 +85,8 @@ function drawNodes(slide, nodes, scale, bbx) {
       },
       align: "center",
       valign: nodeStyle.textValign,
-      fontSize: px2Num(nodeStyle.fontSize) - 4,
+      fontSize: px2Num(nodeStyle.fontSize) - 5,
+      margin: 0,
       rectRadius: scale * 10,
     };
     slide.addText(nodeStyle.label, shapeparams);
