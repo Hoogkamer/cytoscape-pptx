@@ -1,16 +1,41 @@
-export default function pptxAddSlide(pres, cy) {
+export default function pptxAddSlide(pres, cy, options) {
   const slide = pres.addSlide();
+  const standardLayouts = {
+    LAYOUT_16x9: { width: 10, height: 5.625 },
+  };
+
+  const defaultOptions = {
+    layoutName: "LAYOUT_16x9", //see https://gitbrent.github.io/PptxGenJS/docs/usage-pres-options/
+    width: 0, // eighter provide layoutName or a widht and height in inches. layoutName should be '' then
+    height: 0,
+  };
+
+  const thisOptions = {
+    ...defaultOptions,
+    ...options,
+  };
+  const layout = {
+    name: "CUSTOM",
+    width: standardLayouts[defaultOptions.layoutName].width,
+    height: standardLayouts[defaultOptions.layoutName].height,
+  };
+  pres.defineLayout(layout);
+  pres.layout = "CUSTOM";
 
   let bbx = cy.elements().boundingBox();
+  // let size = {
+  //   width: bbx.w / 100,
+  //   height: bbx.h / 100,
+  // };
   let size = {
-    width: bbx.w / 100,
-    height: bbx.h / 100,
+    width: layout.width,
+    height: layout.height,
   };
-  pres.defineLayout({ name: "A3", width: size.width, height: size.height });
-  //let scale = calcScale(bbx, size);
 
-  let scale = 0.01;
-  pres.layout = "A3";
+  let scale = calcScale(bbx, size);
+  console.log("scale", scale, size, thisOptions, layout);
+
+  //let scale = 0.01;
 
   //draw groups first so they come under the rest of the nodes
   let groups = cy.nodes(":parent");
@@ -42,7 +67,7 @@ function drawEdges(slide, edges, scale, bbx) {
       flipV: eprop.flipV,
       line: {
         color: rgb2Hex(edgeStyle.lineColor),
-        width: px2Num(edgeStyle.width),
+        width: 100 * scale * px2Num(edgeStyle.width),
         endArrowType: "triangle",
         dashType:
           edgeStyle.lineStyle === "solid"
@@ -60,7 +85,7 @@ function drawEdges(slide, edges, scale, bbx) {
         fill: { color: "#FFFFFF" },
         align: "center",
         margin: 0,
-        fontSize: px2Num(edgeStyle.fontSize) - 5,
+        fontSize: calcFontSize(edgeStyle.fontSize, scale),
       });
     }
   });
@@ -85,11 +110,12 @@ function drawNodes(slide, nodes, scale, bbx) {
       },
       align: "center",
       valign: nodeStyle.textValign,
-      fontSize: px2Num(nodeStyle.fontSize) - 5,
+      fontSize: calcFontSize(nodeStyle.fontSize, scale),
       margin: 0,
       rectRadius: scale * 10,
     };
     slide.addText(nodeStyle.label, shapeparams);
+    console.log(shapeparams);
   });
 }
 
@@ -153,9 +179,12 @@ function getShape(nodeStyle) {
   return shapesMapping[nodeStyle.shape];
 }
 function calcScale(bbx, size) {
-  let scaleH = (size.height - 0.3) / bbx.h;
-  let scaleW = (size.width - 0.3) / bbx.w;
+  let scaleH = size.height / bbx.h;
+  let scaleW = size.width / bbx.w;
   return Math.min(scaleH, scaleW, 1);
+}
+function calcFontSize(fontSize, scale) {
+  return (px2Num(fontSize) - 5) * scale * 100;
 }
 
 function calcX(bbx, bbx1, scale) {
