@@ -1,57 +1,103 @@
-export default function pptxAddSlide(pres, cy, options) {
+function pptxAddSlide(pres, cy, { options }) {
+  let thisOptions = { ...defaultOptions(), ...options };
+
+  // calculate sizes and scale
+  let graphSize = cy.elements().boundingBox();
+  thisOptions = {
+    ...thisOptions,
+    ...calculateSlideSize({ options: thisOptions, graphSize }),
+  };
+
+  let scale = calcScale(graphSize, thisOptions);
+  let slideSize = { scale, graphSize, layout: thisOptions };
+
+  //define presentation size, and add slide
+  pres.defineLayout({
+    name: "LAYOUT",
+    width: thisOptions.width,
+    height: thisOptions.height,
+  });
+  pres.layout = "LAYOUT";
   const slide = pres.addSlide();
-  const standardLayouts = {
-    LAYOUT_16x9: { width: 10, height: 5.625 },
-  };
 
-  const defaultOptions = {
-    layoutName: "LAYOUT_16x9", //see https://gitbrent.github.io/PptxGenJS/docs/usage-pres-options/
-    width: 0, // eighter provide layoutName or a widht and height in inches. layoutName should be '' then
-    height: 0,
-  };
+  //draw parents first so they come under the rest of the nodes
+  let parents = cy.nodes(":parent");
+  let ultimoParents = parents.nodes(":orphan");
+  let nonUltimoParents = parents.difference(ultimoParents);
+  drawNodes({ slide, nodes: ultimoParents, slideSize });
+  drawNodes({ slide, nodes: nonUltimoParents, slideSize });
 
-  const thisOptions = {
-    ...defaultOptions,
-    ...options,
-  };
-  const layout = {
-    name: "CUSTOM",
-    width: standardLayouts[defaultOptions.layoutName].width,
-    height: standardLayouts[defaultOptions.layoutName].height,
-  };
-  pres.defineLayout(layout);
-  pres.layout = "CUSTOM";
+  //draw non group nodes
+  let nonParents = cy.nodes(":childless");
+  drawNodes({ slide, nodes: nonParents, slideSize });
 
-  let bbx = cy.elements().boundingBox();
-  // let size = {
-  //   width: bbx.w / 100,
-  //   height: bbx.h / 100,
-  // };
-  let size = {
-    width: layout.width,
-    height: layout.height,
-  };
-
-  let scale = calcScale(bbx, size);
-  console.log("scale", scale, size, thisOptions, layout);
-
-  //let scale = 0.01;
-
-  //draw groups first so they come under the rest of the nodes
-  let groups = cy.nodes(":parent");
-  let ultimoParents = groups.nodes(":orphan");
-  let rest = groups.difference(ultimoParents);
-  drawNodes(slide, ultimoParents, scale, bbx);
-  drawNodes(slide, rest, scale, bbx);
-
-  let terms = cy.nodes(":childless");
-  let relations = cy.edges();
-  drawNodes(slide, terms, scale, bbx);
-  drawEdges(slide, relations, scale, bbx);
+  //draw edges
+  let edges = cy.edges();
+  drawEdges({ slide, edges, slideSize });
 }
-function drawEdges(slide, edges, scale, bbx) {
+
+function pptxGetLayouts() {
+  const standardLayouts = [
+    {
+      name: "16x9",
+      width: 10,
+      height: 5.625,
+    },
+    {
+      name: "16x10",
+      width: 10,
+      height: 6.25,
+    },
+    {
+      name: "4x3",
+      width: 10,
+      height: 7.5,
+    },
+    {
+      name: "WIDE",
+      width: 13.3,
+      height: 7.5,
+    },
+    {
+      name: "A3",
+      width: 16.5,
+      height: 11.7,
+    },
+    {
+      name: "A4",
+      width: 11.7,
+      height: 8.3,
+    },
+    {
+      name: "AUTO",
+      width: 0,
+      height: 0,
+    },
+  ];
+  return standardLayouts;
+}
+
+function defaultOptions() {
+  return {
+    width: pptxGetLayouts()[0].width,
+    height: pptxGetLayouts()[0].height,
+    marginTop: 0.2,
+    marginLeft: 0.2,
+  };
+}
+function calculateSlideSize({ options, graphSize }) {
+  console.log("CALCSIZE", options, graphSize);
+  if (options.width && options.height) return {};
+  else {
+    return {
+      width: graphSize.w / 100,
+      height: graphSize.h / 100,
+    };
+  }
+}
+function drawEdges({ slide, edges, slideSize }) {
   edges.forEach((e, i) => {
-    let bbx1 = {
+    let edgeSize = {
       x1: e.sourceEndpoint().x,
       y1: e.sourceEndpoint().y,
       x2: e.targetEndpoint().x,
@@ -60,14 +106,14 @@ function drawEdges(slide, edges, scale, bbx) {
       w: e.targetEndpoint().x - e.sourceEndpoint().x,
     };
     let edgeStyle = e.style();
-    let eprop = getEdgeLocation(bbx, bbx1, scale);
+    let eprop = getEdgeLocation({ edgeSize, slideSize });
     slide.addShape("line", {
       ...eprop.location,
       flipH: eprop.flipH,
       flipV: eprop.flipV,
       line: {
         color: rgb2Hex(edgeStyle.lineColor),
-        width: 100 * scale * px2Num(edgeStyle.width),
+        width: 100 * slideSize.scale * px2Num(edgeStyle.width),
         endArrowType: "triangle",
         dashType:
           edgeStyle.lineStyle === "solid"
@@ -80,25 +126,26 @@ function drawEdges(slide, edges, scale, bbx) {
     // if edge contains a name, add a textbox for it
     if (edgeStyle.label) {
       slide.addText(edgeStyle.label, {
-        shape: "rect",
-        ...getLabelLocation(bbx, e.midpoint(), scale),
-        fill: { color: "#FFFFFF" },
+        ...getLabelLocation({ slideSize, midpoint: e.midpoint() }),
+        //fill: { color: "#FFFFFF" },
         align: "center",
         margin: 0,
-        fontSize: calcFontSize(edgeStyle.fontSize, scale),
+        fontSize: calcFontSize(edgeStyle.fontSize, slideSize.scale),
       });
     }
   });
 }
 
-function drawNodes(slide, nodes, scale, bbx) {
+function drawNodes({ slide, nodes, slideSize }) {
+  console.log(slide, nodes, slideSize);
+
   nodes.forEach((n, i) => {
-    let bbx1 = n.boundingBox();
+    let nodeSize = n.boundingBox();
     let nodeStyle = n.style();
 
     let shapeparams = {
       shape: getShape(nodeStyle),
-      ...getNodeLocation(bbx, bbx1, scale),
+      ...getNodeLocation({ nodeSize, slideSize }),
       color: rgb2Hex(nodeStyle.color),
       fill: {
         color: rgb2Hex(nodeStyle.backgroundColor),
@@ -106,35 +153,35 @@ function drawNodes(slide, nodes, scale, bbx) {
       },
       line: {
         color: rgb2Hex(nodeStyle.borderColor),
-        width: 100 * scale * px2Num(nodeStyle.borderWidth),
+        width: 100 * slideSize.scale * px2Num(nodeStyle.borderWidth),
       },
       align: "center",
       valign: nodeStyle.textValign,
-      fontSize: calcFontSize(nodeStyle.fontSize, scale),
+      fontSize: calcFontSize(nodeStyle.fontSize, slideSize.scale),
       margin: 0,
-      rectRadius: scale * 10,
+      rectRadius: slideSize.scale * 10,
     };
     slide.addText(nodeStyle.label, shapeparams);
     console.log(shapeparams);
   });
 }
 
-function getLabelLocation(bbx, midpoint, scale) {
+function getLabelLocation({ slideSize, midpoint }) {
   let x1 = midpoint.x;
   let y1 = midpoint.y;
 
   return {
-    x: calcX(bbx, { x1 }, scale) - 0.5,
-    y: calcY(bbx, { y1 }, scale),
+    x: calcX({ slideSize, elementSize: { x1 } }) - 0.5,
+    y: calcY({ slideSize, elementSize: { y1 } }),
     w: 1,
     h: 0.1,
   };
 }
-function getEdgeLocation(bbx, bbx1, scale) {
-  let x = calcX(bbx, bbx1, scale);
-  let y = calcY(bbx, bbx1, scale);
-  let w = calcW(bbx, bbx1, scale);
-  let h = calcH(bbx, bbx1, scale);
+function getEdgeLocation({ edgeSize, slideSize }) {
+  let x = calcX({ elementSize: edgeSize, slideSize });
+  let y = calcY({ elementSize: edgeSize, slideSize });
+  let w = calcW({ elementSize: edgeSize, slideSize });
+  let h = calcH({ elementSize: edgeSize, slideSize });
   let flipV = false;
   let flipH = false;
 
@@ -161,11 +208,11 @@ function getEdgeLocation(bbx, bbx1, scale) {
   }
   return { location: { x: x, y: y, w: w, h: h }, flipH, flipV };
 }
-function getNodeLocation(bbx, bbx1, scale) {
-  let x = calcX(bbx, bbx1, scale);
-  let y = calcY(bbx, bbx1, scale);
-  let w = calcW(bbx, bbx1, scale);
-  let h = calcH(bbx, bbx1, scale);
+function getNodeLocation({ nodeSize, slideSize }) {
+  let x = calcX({ elementSize: nodeSize, slideSize });
+  let y = calcY({ elementSize: nodeSize, slideSize });
+  let w = calcW({ elementSize: nodeSize, slideSize });
+  let h = calcH({ elementSize: nodeSize, slideSize });
 
   return { x: x, y: y, w: w, h: h };
 }
@@ -178,29 +225,33 @@ function getShape(nodeStyle) {
   };
   return shapesMapping[nodeStyle.shape];
 }
-function calcScale(bbx, size) {
-  let scaleH = size.height / bbx.h;
-  let scaleW = size.width / bbx.w;
+function calcScale(bbx, layout) {
+  let scaleH = (layout.height - 2 * layout.marginTop) / bbx.h;
+  let scaleW = (layout.width - 2 * layout.marginLeft) / bbx.w;
   return Math.min(scaleH, scaleW, 1);
 }
 function calcFontSize(fontSize, scale) {
   return (px2Num(fontSize) - 5) * scale * 100;
 }
 
-function calcX(bbx, bbx1, scale) {
-  let res = (bbx1.x1 - bbx.x1) * scale;
+function calcX({ elementSize, slideSize }) {
+  let res =
+    (elementSize.x1 - slideSize.graphSize.x1) * slideSize.scale +
+    slideSize.layout.marginLeft;
   return res;
 }
-function calcY(bbx, bbx1, scale) {
-  let res = (bbx1.y1 - bbx.y1) * scale;
+function calcY({ elementSize, slideSize }) {
+  let res =
+    (elementSize.y1 - slideSize.graphSize.y1) * slideSize.scale +
+    slideSize.layout.marginTop;
   return res;
 }
-function calcW(bbx, bbx1, scale) {
-  let res = bbx1.w * scale;
+function calcW({ elementSize, slideSize }) {
+  let res = elementSize.w * slideSize.scale;
   return res;
 }
-function calcH(bbx, bbx1, scale) {
-  let res = bbx1.h * scale;
+function calcH({ elementSize, slideSize }) {
+  let res = elementSize.h * slideSize.scale;
   return res;
 }
 
@@ -218,3 +269,5 @@ function toHex(int) {
   var hex = int.toString(16);
   return hex.length == 1 ? "0" + hex : hex;
 }
+
+export { pptxAddSlide, pptxGetLayouts };

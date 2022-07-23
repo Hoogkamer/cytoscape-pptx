@@ -18,7 +18,7 @@ npm install cytoscape-pptx
 
 ```javascript
 import pptxgen from "pptxgenjs";
-import pptxAddSlide from "cytoscape-pptx";
+import { pptxAddSlide, pptxGetLayouts } from "cytoscape-pptx";
 import cytoscape from "cytoscape";
 
 var cy = cytoscape({
@@ -68,7 +68,31 @@ var cy = cytoscape({
   },
 });
 
+//get overview of built in layout sizes
+console.log(pptxGetLayouts());
+
+//default options
+let defaultOptions = {
+  width: 10, //inches, set to 0 for auto calculation which is usefull for large graphs,
+  height: 5.625, //inches, set to 0 for auto calculation which is usefull for large graphs,
+  marginTop: 0.2, //inches
+  marginLeft: 0.2, //inches
+};
+
+//create presentation
 const pres = new pptxgen();
+
+//add slide width default options
 pptxAddSlide(pres, cy);
+pres.writeFile();
+
+//with specified options
+pptxAddSlide(pres, cy, { options: defaultOptions });
+pres.writeFile();
+
+//with built in layout sizes
+pptxAddSlide(pres, cy, {
+  options: pptxGetLayouts().find((x) => x.name === "WIDE"),
+});
 pres.writeFile();
 ```
