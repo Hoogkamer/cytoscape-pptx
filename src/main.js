@@ -9,7 +9,9 @@ function pptxAddSlide(pres, cy, { options }) {
   };
 
   let scale = calcScale(graphSize, thisOptions);
-  let slideSize = { scale, graphSize, layout: thisOptions };
+  thisOptions.marginTop = scale.centerY; //center graph
+  thisOptions.marginLeft = scale.centerX; //center graph
+  let slideSize = { scale: scale.scale, graphSize, layout: thisOptions };
 
   //define presentation size, and add slide
   pres.defineLayout({
@@ -81,12 +83,11 @@ function defaultOptions() {
   return {
     width: pptxGetLayouts()[0].width,
     height: pptxGetLayouts()[0].height,
-    marginTop: 0.2,
+    marginTop: 1,
     marginLeft: 0.2,
   };
 }
 function calculateSlideSize({ options, graphSize }) {
-  console.log("CALCSIZE", options, graphSize);
   if (options.width && options.height) return {};
   else {
     return {
@@ -137,8 +138,6 @@ function drawEdges({ slide, edges, slideSize }) {
 }
 
 function drawNodes({ slide, nodes, slideSize }) {
-  console.log(slide, nodes, slideSize);
-
   nodes.forEach((n, i) => {
     let nodeSize = n.boundingBox();
     let nodeStyle = n.style();
@@ -162,7 +161,6 @@ function drawNodes({ slide, nodes, slideSize }) {
       rectRadius: slideSize.scale * 10,
     };
     slide.addText(nodeStyle.label, shapeparams);
-    console.log(shapeparams);
   });
 }
 
@@ -226,9 +224,16 @@ function getShape(nodeStyle) {
   return shapesMapping[nodeStyle.shape];
 }
 function calcScale(bbx, layout) {
-  let scaleH = (layout.height - 2 * layout.marginTop) / bbx.h;
-  let scaleW = (layout.width - 2 * layout.marginLeft) / bbx.w;
-  return Math.min(scaleH, scaleW, 1);
+  let heightInch = layout.height - 2 * layout.marginTop;
+  let widthInch = layout.width - 2 * layout.marginLeft;
+  let scaleH = heightInch / bbx.h;
+  let scaleW = widthInch / bbx.w;
+  let scale = Math.min(scaleH, scaleW, 0.01);
+
+  // calculate margin to center graph in slide
+  let centerY = (layout.height - scale * bbx.h) / 2;
+  let centerX = (layout.width - scale * bbx.w) / 2;
+  return { scale, centerY, centerX };
 }
 function calcFontSize(fontSize, scale) {
   return (px2Num(fontSize) - 5) * scale * 100;
