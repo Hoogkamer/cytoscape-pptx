@@ -141,10 +141,21 @@ function drawNodes({ slide, nodes, slideSize }) {
   nodes.forEach((n, i) => {
     let nodeSize = n.boundingBox();
     let nodeStyle = n.style();
+    let nodeLocation = getNodeLocation({ nodeSize, slideSize });
 
     let shapeparams = {
-      shape: getShape(nodeStyle),
-      ...getNodeLocation({ nodeSize, slideSize }),
+      ...getShape(nodeStyle, nodeLocation),
+      // shape: "custGeom",
+      // points: [
+      //   { x: 0.0, y: 0.0 },
+      //   { x: 0.5, y: 1.0 },
+      //   { x: 1.0, y: 0.8 },
+      //   { x: 1.5, y: 1.0 },
+      //   { x: 2.0, y: 0.0 },
+      //   { x: 0.0, y: 0.0, curve: { type: "quadratic", x1: 1.0, y1: 0.5 } },
+      //   { close: true },
+      // ],
+      ...nodeLocation,
       color: rgb2Hex(nodeStyle.color),
       fill: {
         color: rgb2Hex(nodeStyle.backgroundColor),
@@ -215,13 +226,167 @@ function getNodeLocation({ nodeSize, slideSize }) {
   return { x: x, y: y, w: w, h: h };
 }
 
-function getShape(nodeStyle) {
+function getShape(nodeStyle, nodeLocation) {
+  let notavialabeShape = "snipRoundRect";
   let shapesMapping = {
     ellipse: "ellipse",
-    "round-rectangle": "roundRect",
+    triangle: "_triangle",
+    "round-triangle": "_triangle",
     rectangle: "rect",
+    "round-rectangle": "roundRect",
+    "bottom-round-rectangle": "_bottomcutrectange",
+    "cut-rectangle": "octagon",
+    barrel: "_barrel",
+    rhomboid: "_rhomboid",
+    diamond: "diamond",
+    "round-diamond": "trapezoid",
+    pentagon: "_pentagon",
+    "round-pentagon": "_pentagon",
+    hexagon: "_hexagon",
+    "round-hexagon": "_hexagon",
+    "concave-hexagon": "_concavehexagon",
+    heptagon: "_heptagon",
+    "round-heptagon": "_heptagon",
+    octagon: "_octagon",
+    "round-octagon": "_octagon",
+    star: "_star",
+    tag: "_tag",
+    "round-tag": "rightArrow",
+    vee: "_vee",
   };
-  return shapesMapping[nodeStyle.shape];
+
+  let shape = shapesMapping[nodeStyle.shape];
+  if (shape[0] !== "_") {
+    return { shape };
+  } else {
+    return {
+      shape: "custGeom",
+      points: getShapePoints(shape, nodeLocation),
+    };
+  }
+}
+function getShapePoints(shape, nodeLocation) {
+  let width = nodeLocation.w;
+  let height = nodeLocation.h;
+  let customShapes = {
+    _triangle: [
+      { x: 0.0, y: 1.0 },
+      { x: 0.5, y: 0.0 },
+      { x: 1.0, y: 1.0 },
+      { x: 0.0, y: 1.0 },
+    ],
+    _tag: [
+      { x: 0.0, y: 0.0 },
+      { x: 0.66, y: 0.0 },
+      { x: 1.0, y: 0.5 },
+      { x: 0.66, y: 1.0 },
+      { x: 0.0, y: 1.0 },
+      { x: 0.0, y: 0.0 },
+    ],
+    _vee: [
+      { x: 0.0, y: 0.0 },
+      { x: 0.5, y: 0.34 },
+      { x: 1.0, y: 0.0 },
+      { x: 0.5, y: 1.0 },
+      { x: 0.0, y: 0.0 },
+    ],
+    _rhomboid: [
+      { x: 0.0, y: 0.0 },
+      { x: 0.66, y: 0.0 },
+      { x: 1.0, y: 1.0 },
+      { x: 0.33, y: 1.0 },
+      { x: 0.0, y: 0.0 },
+    ],
+    _pentagon: [
+      { x: 0.0, y: 0.4 },
+      { x: 0.5, y: 0.0 },
+      { x: 1.0, y: 0.4 },
+      { x: 0.8, y: 1.0 },
+      { x: 0.2, y: 1.0 },
+      { x: 0.0, y: 0.4 },
+    ],
+    _hexagon: [
+      { x: 0.0, y: 0.5 },
+      { x: 0.2, y: 0.0 },
+      { x: 0.8, y: 0.0 },
+      { x: 1.0, y: 0.5 },
+      { x: 0.8, y: 1.0 },
+      { x: 0.2, y: 1.0 },
+      { x: 0.0, y: 0.5 },
+    ],
+    _heptagon: [
+      { x: 0.0, y: 0.6 },
+      { x: 0.15, y: 0.2 },
+      { x: 0.5, y: 0.0 },
+      { x: 0.85, y: 0.2 },
+      { x: 1.0, y: 0.6 },
+      { x: 0.7, y: 1.0 },
+      { x: 0.3, y: 1.0 },
+      { x: 0.0, y: 0.6 },
+    ],
+    _concavehexagon: [
+      { x: 0.0, y: 0.0 },
+      { x: 1.0, y: 0.0 },
+      { x: 0.85, y: 0.5 },
+      { x: 1.0, y: 1.0 },
+      { x: 0.0, y: 1.0 },
+      { x: 0.15, y: 0.5 },
+      { x: 0.0, y: 0.0 },
+    ],
+    _octagon: [
+      { x: 0.0, y: 0.3 },
+      { x: 0.3, y: 0.0 },
+      { x: 0.7, y: 0.0 },
+      { x: 1.0, y: 0.3 },
+      { x: 1.0, y: 0.7 },
+      { x: 0.7, y: 1.0 },
+      { x: 0.3, y: 1.0 },
+      { x: 0.0, y: 0.7 },
+      { x: 0.0, y: 0.3 },
+    ],
+    _star: [
+      { x: 0.0, y: 0.4 },
+      { x: 0.33, y: 0.27 },
+      { x: 0.5, y: 0.0 },
+      { x: 0.67, y: 0.27 },
+      { x: 1.0, y: 0.38 },
+      { x: 0.8, y: 0.67 },
+      { x: 0.8, y: 1.0 },
+      { x: 0.5, y: 0.9 },
+      { x: 0.2, y: 1.0 },
+      { x: 0.2, y: 0.67 },
+      { x: 0.0, y: 0.4 },
+    ],
+    _barrel: [
+      { x: 0.0, y: 0.1 },
+      { x: 0.2, y: 0.0 },
+      { x: 0.8, y: 0.0 },
+      { x: 1.0, y: 0.1 },
+      { x: 1.0, y: 0.9 },
+      { x: 0.8, y: 1.0 },
+      { x: 0.2, y: 1.0 },
+      { x: 0.0, y: 0.9 },
+      { x: 0.0, y: 0.1 },
+    ],
+
+    _bottomcutrectange: [
+      { x: 0.0, y: 0.0 },
+      { x: 1.0, y: 0.0 },
+      { x: 1.0, y: 0.8 },
+      { x: 0.95, y: 0.95 },
+      { x: 0.8, y: 1.0 },
+      { x: 0.2, y: 1.0 },
+      { x: 0.05, y: 0.95 },
+      { x: 0.0, y: 0.8 },
+      { x: 0.0, y: 0.0 },
+    ],
+  };
+  let thisShape = customShapes[shape];
+  thisShape.forEach((tp) => {
+    tp.x = tp.x * width;
+    tp.y = tp.y * height;
+  });
+  return thisShape;
 }
 function calcScale(bbx, layout) {
   let heightInch = layout.height - 2 * layout.marginTop;
