@@ -1,6 +1,6 @@
 {
   "name": "cytoscape-pptx",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "main": "dist/pptx.cjs.js",
   "module": "dist/pptx.esm.js",
   "browser": "dist/pptx.umd.js",
@@ -29,7 +29,7 @@
   "keywords": [
     "cytoscape"
   ],
-  "author": "hoogkamer",
+  "author": "Hoogkamer",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/Hoogkamer/cytoscape-pptx/issues"
