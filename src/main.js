@@ -169,8 +169,12 @@ function drawNodes({ slide, nodes, slideSize }) {
       valign: nodeStyle.textValign,
       fontSize: calcFontSize(nodeStyle.fontSize, slideSize.scale),
       margin: 0,
-      rectRadius: slideSize.scale * 10,
+      //rectRadius: slideSize.scale * 10,
     };
+    if (nodeStyle.shape === "round-rectangle") {
+      shapeparams.rectRadius = slideSize.scale * 10;
+    }
+    console.log(shapeparams);
     slide.addText(nodeStyle.label, shapeparams);
   });
 }
@@ -256,6 +260,7 @@ function getShape(nodeStyle, nodeLocation) {
   };
 
   let shape = shapesMapping[nodeStyle.shape];
+
   if (shape[0] !== "_") {
     return { shape };
   } else {
@@ -430,7 +435,7 @@ function rgb2Hex(color) {
   color.replace(/[\d+\.]+/g, function (v) {
     arr.push(parseFloat(v));
   });
-  return "#" + arr.slice(0, 3).map(toHex).join("");
+  return arr.slice(0, 3).map(toHex).join("").toUpperCase();
 }
 function px2Num(px) {
   return parseFloat(px.replace("px", ""));
