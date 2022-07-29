@@ -35,7 +35,7 @@ function pptxAddSlide(pres, cy, { options }) {
 
   //draw edges
   let edges = cy.edges();
-  drawEdges({ slide, edges, slideSize });
+  drawEdges({ slide, edges, slideSize, segmented: thisOptions.segmentedEdges });
 }
 
 function pptxGetLayouts() {
@@ -85,6 +85,7 @@ function defaultOptions() {
     height: pptxGetLayouts()[0].height,
     marginTop: 1,
     marginLeft: 0.2,
+    segmentedEdges: true,
   };
 }
 function calculateSlideSize({ options, graphSize }) {
@@ -96,38 +97,47 @@ function calculateSlideSize({ options, graphSize }) {
     };
   }
 }
-function drawEdges({ slide, edges, slideSize }) {
+
+function drawEdges({ slide, edges, slideSize, segmented }) {
   edges.forEach((e, i) => {
-    let edgeSize = {
-      x1: e.sourceEndpoint().x,
-      y1: e.sourceEndpoint().y,
-      x2: e.targetEndpoint().x,
-      y2: e.targetEndpoint().y,
-      h: e.targetEndpoint().y - e.sourceEndpoint().y,
-      w: e.targetEndpoint().x - e.sourceEndpoint().x,
-    };
     let edgeStyle = e.style();
-    let eprop = getEdgeLocation({ edgeSize, slideSize });
-    slide.addShape("line", {
-      ...eprop.location,
-      flipH: eprop.flipH,
-      flipV: eprop.flipV,
-      line: {
-        color: rgb2Hex(edgeStyle.lineColor),
-        width: 100 * slideSize.scale * px2Num(edgeStyle.width),
-        endArrowType: "triangle",
-        dashType:
-          edgeStyle.lineStyle === "solid"
-            ? "solid"
-            : edgeStyle.lineStyle === "dashed"
-            ? "lgDash"
-            : "lgDashDotDot",
-      },
-    });
+
+    let lineprop = {
+      color: rgb2Hex(edgeStyle.lineColor),
+      width: 100 * slideSize.scale * px2Num(edgeStyle.width),
+      endArrowType: "triangle",
+      dashType:
+        edgeStyle.lineStyle === "solid"
+          ? "solid"
+          : edgeStyle.lineStyle === "dashed"
+          ? "lgDash"
+          : "lgDashDotDot",
+    };
+    // if it is a segmented edge, then draw a custom shape, otherwise a normal line
+    if (segmented && e.segmentPoints()) {
+      slide.addShape("custGeom", {
+        ...getEprop({ e, slideSize }),
+        line: lineprop,
+      });
+    } else {
+      slide.addShape("line", {
+        ...getEdgeLocation({ e, slideSize }),
+        line: lineprop,
+      });
+    }
+
     // if edge contains a name, add a textbox for it
     if (edgeStyle.label) {
+      let midpoint = e.midpoint();
+      // if it is a segmented edge, but we draw it as a straight line, recalculate the midpoint for the label
+      if ((!segmented && e.segmentPoints()) || e.controlPoints()) {
+        midpoint = {
+          x: (e.sourceEndpoint().x + e.targetEndpoint().x) / 2,
+          y: (e.sourceEndpoint().y + e.targetEndpoint().y) / 2,
+        };
+      }
       slide.addText(edgeStyle.label, {
-        ...getLabelLocation({ slideSize, midpoint: e.midpoint() }),
+        ...getLabelLocation({ slideSize, midpoint }),
         //fill: { color: "#FFFFFF" },
         align: "center",
         margin: 0,
@@ -135,6 +145,43 @@ function drawEdges({ slide, edges, slideSize }) {
       });
     }
   });
+}
+function updateBbx({ bbx, x, y }) {
+  if (Object.keys(bbx).length === 0) return { x1: x, x2: x, y1: y, y2: y };
+  else
+    return {
+      x1: bbx.x1 < x ? bbx.x1 : x,
+      x2: bbx.x2 > x ? bbx.x2 : x,
+      y1: bbx.y1 < y ? bbx.y1 : y,
+      y2: bbx.y2 > y ? bbx.y2 : y,
+    };
+}
+function getEprop({ e, slideSize }) {
+  console.log(e, e.segmentPoints(), e.sourceEndpoint(), e.targetEndpoint());
+
+  let pixelPoints = [];
+  pixelPoints.push({ ...e.sourceEndpoint() });
+  e.segmentPoints().forEach((sp) => pixelPoints.push({ ...sp }));
+  pixelPoints.push({ ...e.targetEndpoint() });
+  let bbx = {};
+  pixelPoints.forEach((pp) => {
+    bbx = updateBbx({ bbx, ...pp });
+  });
+
+  console.log(bbx);
+  pixelPoints.forEach((pp) => {
+    pp.x = (pp.x - bbx.x1) * slideSize.scale;
+    pp.y = (pp.y - bbx.y1) * slideSize.scale;
+  });
+  // calculate width and height
+
+  return {
+    points: pixelPoints,
+    x: calcX({ slideSize, elementSize: { x1: bbx.x1 } }),
+    y: calcY({ slideSize, elementSize: { y1: bbx.y1 } }),
+    w: calcW({ elementSize: { w: bbx.x2 - bbx.x1 }, slideSize }),
+    h: calcH({ elementSize: { h: bbx.y2 - bbx.y1 }, slideSize }),
+  };
 }
 
 function drawNodes({ slide, nodes, slideSize }) {
@@ -145,16 +192,6 @@ function drawNodes({ slide, nodes, slideSize }) {
 
     let shapeparams = {
       ...getShape(nodeStyle, nodeLocation),
-      // shape: "custGeom",
-      // points: [
-      //   { x: 0.0, y: 0.0 },
-      //   { x: 0.5, y: 1.0 },
-      //   { x: 1.0, y: 0.8 },
-      //   { x: 1.5, y: 1.0 },
-      //   { x: 2.0, y: 0.0 },
-      //   { x: 0.0, y: 0.0, curve: { type: "quadratic", x1: 1.0, y1: 0.5 } },
-      //   { close: true },
-      // ],
       ...nodeLocation,
       color: rgb2Hex(nodeStyle.color),
       fill: {
@@ -190,7 +227,15 @@ function getLabelLocation({ slideSize, midpoint }) {
     h: 0.1,
   };
 }
-function getEdgeLocation({ edgeSize, slideSize }) {
+function getEdgeLocation({ e, slideSize }) {
+  let edgeSize = {
+    x1: e.sourceEndpoint().x,
+    y1: e.sourceEndpoint().y,
+    x2: e.targetEndpoint().x,
+    y2: e.targetEndpoint().y,
+    h: e.targetEndpoint().y - e.sourceEndpoint().y,
+    w: e.targetEndpoint().x - e.sourceEndpoint().x,
+  };
   let x = calcX({ elementSize: edgeSize, slideSize });
   let y = calcY({ elementSize: edgeSize, slideSize });
   let w = calcW({ elementSize: edgeSize, slideSize });
@@ -219,7 +264,7 @@ function getEdgeLocation({ edgeSize, slideSize }) {
     y = y + h;
     h = -h;
   }
-  return { location: { x: x, y: y, w: w, h: h }, flipH, flipV };
+  return { x: x, y: y, w: w, h: h, flipH, flipV };
 }
 function getNodeLocation({ nodeSize, slideSize }) {
   let x = calcX({ elementSize: nodeSize, slideSize });

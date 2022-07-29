@@ -77,6 +77,7 @@ let defaultOptions = {
   height: 5.625, //inches, set to 0 for auto calculation which is usefull for large graphs,
   marginTop: 0.2, //inches
   marginLeft: 0.2, //inches
+  segmentedEdges: true, // if the edge is segmented, export it with bend points (true), or as straight line (false)
 };
 
 //create presentation
