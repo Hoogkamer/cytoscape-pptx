@@ -77,21 +77,21 @@ let defaultOptions = {
   height: 5.625, //inches, set to 0 for auto calculation which is usefull for large graphs,
   marginTop: 0.2, //inches
   marginLeft: 0.2, //inches
-  segmentedEdges: true, // if the edge is segmented, export it with bend points (true), or as straight line (false)
+  segmentedEdges: true, // if the edge is segmented, export it with bend points (true), or as straight line (false). Control points (curved edges) are not supported
 };
 
 //create presentation
 const pres = new pptxgen();
 
-//add slide width default options
+//add slide width default options....
 pptxAddSlide(pres, cy);
 pres.writeFile();
 
-//with specified options
+//OR with specified options....
 pptxAddSlide(pres, cy, { options: defaultOptions });
 pres.writeFile();
 
-//with built in layout sizes
+//OR with built in layout sizes
 pptxAddSlide(pres, cy, {
   options: pptxGetLayouts().find((x) => x.name === "WIDE"),
 });

@@ -1,26 +1,22 @@
-function pptxAddSlide(pres, cy, { options }) {
-  let thisOptions = { ...defaultOptions(), ...options };
-
+function pptxAddSlide(presentation, cy, { options }) {
   // calculate sizes and scale
   let graphSize = cy.elements().boundingBox();
-  thisOptions = {
-    ...thisOptions,
-    ...calculateSlideSize({ options: thisOptions, graphSize }),
+  let thisOptions = {
+    ...defaultOptions(),
+    ...options,
   };
+  if (!(thisOptions.width && thisOptions.height)) {
+    thisOptions = addSizeToOptions({ thisOptions, graphSize });
+  }
+
+  console.log(thisOptions);
 
   let scale = calcScale(graphSize, thisOptions);
   thisOptions.marginTop = scale.centerY; //center graph
   thisOptions.marginLeft = scale.centerX; //center graph
-  let slideSize = { scale: scale.scale, graphSize, layout: thisOptions };
 
-  //define presentation size, and add slide
-  pres.defineLayout({
-    name: "LAYOUT",
-    width: thisOptions.width,
-    height: thisOptions.height,
-  });
-  pres.layout = "LAYOUT";
-  const slide = pres.addSlide();
+  let slideSize = { scale: scale.scale, graphSize, options: thisOptions };
+  const slide = createSlide({ presentation, options: thisOptions });
 
   //draw parents first so they come under the rest of the nodes
   let parents = cy.nodes(":parent");
@@ -30,12 +26,26 @@ function pptxAddSlide(pres, cy, { options }) {
   drawNodes({ slide, nodes: nonUltimoParents, slideSize });
 
   //draw non group nodes
-  let nonParents = cy.nodes(":childless");
-  drawNodes({ slide, nodes: nonParents, slideSize });
+  drawNodes({ slide, nodes: cy.nodes(":childless"), slideSize });
 
   //draw edges
   let edges = cy.edges();
-  drawEdges({ slide, edges, slideSize, segmented: thisOptions.segmentedEdges });
+  drawEdges({
+    slide,
+    edges,
+    slideSize,
+    segmentedEdges: thisOptions.segmentedEdges,
+  });
+}
+
+function createSlide({ presentation, options }) {
+  presentation.defineLayout({
+    name: "LAYOUT",
+    width: options.width,
+    height: options.height,
+  });
+  presentation.layout = "LAYOUT";
+  return presentation.addSlide();
 }
 
 function pptxGetLayouts() {
@@ -88,17 +98,15 @@ function defaultOptions() {
     segmentedEdges: true,
   };
 }
-function calculateSlideSize({ options, graphSize }) {
-  if (options.width && options.height) return {};
-  else {
-    return {
-      width: graphSize.w / 100,
-      height: graphSize.h / 100,
-    };
-  }
+function addSizeToOptions({ thisOptions, graphSize }) {
+  return {
+    ...thisOptions,
+    width: graphSize.w / 100,
+    height: graphSize.h / 100,
+  };
 }
 
-function drawEdges({ slide, edges, slideSize, segmented }) {
+function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
   edges.forEach((e, i) => {
     let edgeStyle = e.style();
 
@@ -114,9 +122,11 @@ function drawEdges({ slide, edges, slideSize, segmented }) {
           : "lgDashDotDot",
     };
     // if it is a segmented edge, then draw a custom shape, otherwise a normal line
-    if (segmented && e.segmentPoints()) {
+
+    console.log(segmentedEdges, e.segmentPoints());
+    if (segmentedEdges && e.segmentPoints()) {
       slide.addShape("custGeom", {
-        ...getEprop({ e, slideSize }),
+        ...getEdgeSegments({ e, slideSize }),
         line: lineprop,
       });
     } else {
@@ -130,7 +140,8 @@ function drawEdges({ slide, edges, slideSize, segmented }) {
     if (edgeStyle.label) {
       let midpoint = e.midpoint();
       // if it is a segmented edge, but we draw it as a straight line, recalculate the midpoint for the label
-      if ((!segmented && e.segmentPoints()) || e.controlPoints()) {
+      // cpntrol points (curved edges) are not supported yet, and drawn as straight lines
+      if ((!segmentedEdges && e.segmentPoints()) || e.controlPoints()) {
         midpoint = {
           x: (e.sourceEndpoint().x + e.targetEndpoint().x) / 2,
           y: (e.sourceEndpoint().y + e.targetEndpoint().y) / 2,
@@ -138,7 +149,6 @@ function drawEdges({ slide, edges, slideSize, segmented }) {
       }
       slide.addText(edgeStyle.label, {
         ...getLabelLocation({ slideSize, midpoint }),
-        //fill: { color: "#FFFFFF" },
         align: "center",
         margin: 0,
         fontSize: calcFontSize(edgeStyle.fontSize, slideSize.scale),
@@ -156,27 +166,26 @@ function updateBbx({ bbx, x, y }) {
       y2: bbx.y2 > y ? bbx.y2 : y,
     };
 }
-function getEprop({ e, slideSize }) {
-  console.log(e, e.segmentPoints(), e.sourceEndpoint(), e.targetEndpoint());
+function getEdgeSegments({ e, slideSize }) {
+  let edgeSegments = [];
+  edgeSegments.push({ ...e.sourceEndpoint() });
+  e.segmentPoints().forEach((sp) => edgeSegments.push({ ...sp }));
+  edgeSegments.push({ ...e.targetEndpoint() });
 
-  let pixelPoints = [];
-  pixelPoints.push({ ...e.sourceEndpoint() });
-  e.segmentPoints().forEach((sp) => pixelPoints.push({ ...sp }));
-  pixelPoints.push({ ...e.targetEndpoint() });
+  //calculate the bounding box
   let bbx = {};
-  pixelPoints.forEach((pp) => {
+  edgeSegments.forEach((pp) => {
     bbx = updateBbx({ bbx, ...pp });
   });
 
-  console.log(bbx);
-  pixelPoints.forEach((pp) => {
+  // calculate the relative segment positions, relative to the start of the bounding box
+  edgeSegments.forEach((pp) => {
     pp.x = (pp.x - bbx.x1) * slideSize.scale;
     pp.y = (pp.y - bbx.y1) * slideSize.scale;
   });
-  // calculate width and height
 
   return {
-    points: pixelPoints,
+    points: edgeSegments,
     x: calcX({ slideSize, elementSize: { x1: bbx.x1 } }),
     y: calcY({ slideSize, elementSize: { y1: bbx.y1 } }),
     w: calcW({ elementSize: { w: bbx.x2 - bbx.x1 }, slideSize }),
@@ -206,12 +215,10 @@ function drawNodes({ slide, nodes, slideSize }) {
       valign: nodeStyle.textValign,
       fontSize: calcFontSize(nodeStyle.fontSize, slideSize.scale),
       margin: 0,
-      //rectRadius: slideSize.scale * 10,
     };
     if (nodeStyle.shape === "round-rectangle") {
       shapeparams.rectRadius = slideSize.scale * 10;
     }
-    console.log(shapeparams);
     slide.addText(nodeStyle.label, shapeparams);
   });
 }
@@ -243,6 +250,7 @@ function getEdgeLocation({ e, slideSize }) {
   let flipV = false;
   let flipH = false;
 
+  // height and width cannot be negative, so correct and rotate to make them positive
   if (w >= 0 && h >= 0) {
     flipV = false;
     flipH = false;
@@ -276,7 +284,7 @@ function getNodeLocation({ nodeSize, slideSize }) {
 }
 
 function getShape(nodeStyle, nodeLocation) {
-  let notavialabeShape = "snipRoundRect";
+  // translate cytoscape shapes to powerpoint shapes
   let shapesMapping = {
     ellipse: "ellipse",
     triangle: "_triangle",
@@ -307,6 +315,7 @@ function getShape(nodeStyle, nodeLocation) {
   let shape = shapesMapping[nodeStyle.shape];
 
   if (shape[0] !== "_") {
+    // shape is not available in powerpoint, so create a custom shape
     return { shape };
   } else {
     return {
@@ -438,16 +447,16 @@ function getShapePoints(shape, nodeLocation) {
   });
   return thisShape;
 }
-function calcScale(bbx, layout) {
-  let heightInch = layout.height - 2 * layout.marginTop;
-  let widthInch = layout.width - 2 * layout.marginLeft;
+function calcScale(bbx, options) {
+  let heightInch = options.height - 2 * options.marginTop;
+  let widthInch = options.width - 2 * options.marginLeft;
   let scaleH = heightInch / bbx.h;
   let scaleW = widthInch / bbx.w;
   let scale = Math.min(scaleH, scaleW, 0.01);
 
   // calculate margin to center graph in slide
-  let centerY = (layout.height - scale * bbx.h) / 2;
-  let centerX = (layout.width - scale * bbx.w) / 2;
+  let centerY = (options.height - scale * bbx.h) / 2;
+  let centerX = (options.width - scale * bbx.w) / 2;
   return { scale, centerY, centerX };
 }
 function calcFontSize(fontSize, scale) {
@@ -457,13 +466,13 @@ function calcFontSize(fontSize, scale) {
 function calcX({ elementSize, slideSize }) {
   let res =
     (elementSize.x1 - slideSize.graphSize.x1) * slideSize.scale +
-    slideSize.layout.marginLeft;
+    slideSize.options.marginLeft;
   return res;
 }
 function calcY({ elementSize, slideSize }) {
   let res =
     (elementSize.y1 - slideSize.graphSize.y1) * slideSize.scale +
-    slideSize.layout.marginTop;
+    slideSize.options.marginTop;
   return res;
 }
 function calcW({ elementSize, slideSize }) {
