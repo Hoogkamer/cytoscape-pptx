@@ -109,11 +109,12 @@ function addSizeToOptions({ thisOptions, graphSize }) {
 function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
   edges.forEach((e, i) => {
     let edgeStyle = e.style();
-
     let lineprop = {
       color: rgb2Hex(edgeStyle.lineColor),
       width: 100 * slideSize.scale * px2Num(edgeStyle.width),
-      endArrowType: "triangle",
+      endArrowType: edgeStyle.sourceArrowShape === "none" ? "none" : "triangle",
+      beginArrowType:
+        edgeStyle.targetArrowShape === "none" ? "none" : "triangle",
       dashType:
         edgeStyle.lineStyle === "solid"
           ? "solid"
@@ -123,7 +124,6 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     };
     // if it is a segmented edge, then draw a custom shape, otherwise a normal line
 
-    console.log(segmentedEdges, e.segmentPoints());
     if (segmentedEdges && e.segmentPoints()) {
       slide.addShape("custGeom", {
         ...getEdgeSegments({ e, slideSize }),
