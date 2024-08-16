@@ -112,9 +112,9 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     let lineprop = {
       color: rgb2Hex(edgeStyle.lineColor),
       width: 100 * slideSize.scale * px2Num(edgeStyle.width),
-      endArrowType: edgeStyle.sourceArrowShape === "none" ? "none" : "triangle",
+      endArrowType: edgeStyle.targetArrowShape === "none" ? "none" : "triangle",
       beginArrowType:
-        edgeStyle.targetArrowShape === "none" ? "none" : "triangle",
+        edgeStyle.sourceArrowShape === "none" ? "none" : "triangle",
       dashType:
         edgeStyle.lineStyle === "solid"
           ? "solid"
