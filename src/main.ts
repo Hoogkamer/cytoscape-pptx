@@ -1,27 +1,156 @@
-function pptxAddSlide(presentation, cy, { options } = {}) {
+// Type definitions
+interface PptxPresentation {
+  defineLayout(layout: { name: string; width: number; height: number }): void;
+  layout: string;
+  addSlide(): PptxSlide;
+}
+
+interface PptxSlide {
+  addShape(
+    type: string,
+    options: Record<string, any>
+  ): void;
+  addText(
+    text: string,
+    options: Record<string, any>
+  ): void;
+}
+
+interface CytoscapeInstance {
+  elements(): CytoscapeCollection;
+  nodes(selector?: string): CytoscapeCollection;
+  edges(): CytoscapeCollection;
+}
+
+interface CytoscapeCollection {
+  boundingBox(): BoundingBox;
+  nodes(selector?: string): CytoscapeCollection;
+  difference(other: CytoscapeCollection): CytoscapeCollection;
+  forEach(callback: (element: CytoscapeElement, index: number) => void): void;
+  length: number;
+}
+
+interface CytoscapeElement {
+  id(): string;
+  boundingBox(): BoundingBox;
+  style(): ElementStyle;
+  segmentPoints?(): Point[];
+  controlPoints?(): Point[];
+  sourceEndpoint?(): Point;
+  targetEndpoint?(): Point;
+  midpoint?(): Point;
+  source(): CytoscapeElement;
+  target(): CytoscapeElement;
+  position(): Point;
+}
+
+interface BoundingBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  w: number;
+  h: number;
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface ElementStyle {
+  label?: string;
+  shape?: string;
+  color?: string;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  borderColor?: string;
+  borderWidth?: string | number;
+  fontSize?: string | number;
+  textValign?: string;
+  lineColor?: string;
+  width?: string | number;
+  targetArrowShape?: string;
+  sourceArrowShape?: string;
+  lineStyle?: string;
+}
+
+interface ExportOptions {
+  width?: number;
+  height?: number;
+  marginTop?: number;
+  marginLeft?: number;
+  segmentedEdges?: boolean;
+}
+
+interface SlideSize {
+  scale: number;
+  graphSize: BoundingBox;
+  options: Required<ExportOptions>;
+}
+
+interface ScaleResult {
+  scale: number;
+  centerY: number;
+  centerX: number;
+}
+
+interface LayoutPreset {
+  name: string;
+  width: number;
+  height: number;
+}
+
+interface EdgeLocation {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  flipH: boolean;
+  flipV: boolean;
+}
+
+interface NodeLocation {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface ShapeResult {
+  shape: string;
+  points?: Point[];
+  rectRadius?: number;
+}
+
+// Main API function
+function pptxAddSlide(
+  presentation: PptxPresentation,
+  cy: CytoscapeInstance,
+  { options = {} }: { options?: ExportOptions } = {}
+): PptxSlide {
   // calculate sizes and scale
-  let graphSize = cy.elements().boundingBox();
-  let thisOptions = {
+  const graphSize = cy.elements().boundingBox();
+  let thisOptions: Required<ExportOptions> = {
     ...defaultOptions(),
     ...options,
-  };
+  } as Required<ExportOptions>;
+
   if (!(thisOptions.width && thisOptions.height)) {
     thisOptions = addSizeToOptions({ thisOptions, graphSize });
   }
 
-  console.log(thisOptions);
-
-  let scale = calcScale(graphSize, thisOptions);
+  const scale = calcScale(graphSize, thisOptions);
   thisOptions.marginTop = scale.centerY; //center graph
   thisOptions.marginLeft = scale.centerX; //center graph
 
-  let slideSize = { scale: scale.scale, graphSize, options: thisOptions };
+  const slideSize: SlideSize = { scale: scale.scale, graphSize, options: thisOptions };
   const slide = createSlide({ presentation, options: thisOptions });
 
   //draw parents first so they come under the rest of the nodes
-  let parents = cy.nodes(":parent");
-  let ultimoParents = parents.nodes(":orphan");
-  let nonUltimoParents = parents.difference(ultimoParents);
+  const parents = cy.nodes(":parent");
+  const ultimoParents = parents.nodes(":orphan");
+  const nonUltimoParents = parents.difference(ultimoParents);
   drawNodes({ slide, nodes: ultimoParents, slideSize });
   drawNodes({ slide, nodes: nonUltimoParents, slideSize });
 
@@ -29,16 +158,24 @@ function pptxAddSlide(presentation, cy, { options } = {}) {
   drawNodes({ slide, nodes: cy.nodes(":childless"), slideSize });
 
   //draw edges
-  let edges = cy.edges();
+  const edges = cy.edges();
   drawEdges({
     slide,
     edges,
     slideSize,
     segmentedEdges: thisOptions.segmentedEdges,
   });
+
+  return slide;
 }
 
-function createSlide({ presentation, options }) {
+function createSlide({
+  presentation,
+  options,
+}: {
+  presentation: PptxPresentation;
+  options: Required<ExportOptions>;
+}): PptxSlide {
   presentation.defineLayout({
     name: "LAYOUT",
     width: options.width,
@@ -48,8 +185,8 @@ function createSlide({ presentation, options }) {
   return presentation.addSlide();
 }
 
-function pptxGetLayouts() {
-  const standardLayouts = [
+function pptxGetLayouts(): LayoutPreset[] {
+  const standardLayouts: LayoutPreset[] = [
     {
       name: "16x9",
       width: 10,
@@ -89,7 +226,7 @@ function pptxGetLayouts() {
   return standardLayouts;
 }
 
-function defaultOptions() {
+function defaultOptions(): Required<ExportOptions> {
   return {
     width: pptxGetLayouts()[0].width,
     height: pptxGetLayouts()[0].height,
@@ -98,7 +235,14 @@ function defaultOptions() {
     segmentedEdges: true,
   };
 }
-function addSizeToOptions({ thisOptions, graphSize }) {
+
+function addSizeToOptions({
+  thisOptions,
+  graphSize,
+}: {
+  thisOptions: Required<ExportOptions>;
+  graphSize: BoundingBox;
+}): Required<ExportOptions> {
   return {
     ...thisOptions,
     width: graphSize.w / 100,
@@ -106,10 +250,20 @@ function addSizeToOptions({ thisOptions, graphSize }) {
   };
 }
 
-function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
-  edges.forEach((e, i) => {
-    let edgeStyle = e.style();
-    let lineprop = {
+function drawEdges({
+  slide,
+  edges,
+  slideSize,
+  segmentedEdges,
+}: {
+  slide: PptxSlide;
+  edges: CytoscapeCollection;
+  slideSize: SlideSize;
+  segmentedEdges: boolean;
+}): void {
+  edges.forEach((e: CytoscapeElement) => {
+    const edgeStyle = e.style();
+    const lineprop = {
       color: rgb2Hex(edgeStyle.lineColor),
       width: 100 * slideSize.scale * px2Num(edgeStyle.width),
       endArrowType: edgeStyle.targetArrowShape === "none" ? "none" : "triangle",
@@ -125,9 +279,9 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     // if it is a segmented edge, then draw a custom shape, otherwise a normal line
 
     // Safely get segment points (may not work in headless mode)
-    let segmentPoints = null;
+    let segmentPoints: Point[] | null = null;
     try {
-      segmentPoints = e.segmentPoints();
+      segmentPoints = e.segmentPoints?.() || null;
     } catch (err) {
       // Ignore error in headless mode
     }
@@ -148,12 +302,12 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     if (edgeStyle.label) {
       let midpoint = getMidpoint(e);
       // if it is a segmented edge, but we draw it as a straight line, recalculate the midpoint for the label
-      // cpntrol points (curved edges) are not supported yet, and drawn as straight lines
+      // control points (curved edges) are not supported yet, and drawn as straight lines
 
       // Safely get control points (may not work in headless mode)
-      let controlPoints = null;
+      let controlPoints: Point[] | null = null;
       try {
-        controlPoints = e.controlPoints();
+        controlPoints = e.controlPoints?.() || null;
       } catch (err) {
         // Ignore error in headless mode
       }
@@ -175,61 +329,94 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     }
   });
 }
-function updateBbx({ bbx, x, y }) {
+
+function updateBbx({
+  bbx,
+  x,
+  y,
+}: {
+  bbx: Partial<BoundingBox>;
+  x: number;
+  y: number;
+}): Partial<BoundingBox> {
   if (Object.keys(bbx).length === 0) return { x1: x, x2: x, y1: y, y2: y };
   else
     return {
-      x1: bbx.x1 < x ? bbx.x1 : x,
-      x2: bbx.x2 > x ? bbx.x2 : x,
-      y1: bbx.y1 < y ? bbx.y1 : y,
-      y2: bbx.y2 > y ? bbx.y2 : y,
+      x1: (bbx.x1 ?? x) < x ? bbx.x1 : x,
+      x2: (bbx.x2 ?? x) > x ? bbx.x2 : x,
+      y1: (bbx.y1 ?? y) < y ? bbx.y1 : y,
+      y2: (bbx.y2 ?? y) > y ? bbx.y2 : y,
     };
 }
-function getEdgeSegments({ e, slideSize }) {
-  let edgeSegments = [];
+
+function getEdgeSegments({
+  e,
+  slideSize,
+}: {
+  e: CytoscapeElement;
+  slideSize: SlideSize;
+}): {
+  points: Point[];
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  const edgeSegments: Point[] = [];
   edgeSegments.push({ ...getSourceEndpoint(e) });
   // segmentPoints will exist if we're calling this function
   try {
-    e.segmentPoints().forEach((sp) => edgeSegments.push({ ...sp }));
+    const segments = e.segmentPoints?.();
+    if (segments) {
+      segments.forEach((sp: Point) => edgeSegments.push({ ...sp }));
+    }
   } catch (err) {
     // If segmentPoints fails, segments array will only have source and target
   }
   edgeSegments.push({ ...getTargetEndpoint(e) });
 
   //calculate the bounding box
-  let bbx = {};
-  edgeSegments.forEach((pp) => {
+  let bbx: Partial<BoundingBox> = {};
+  edgeSegments.forEach((pp: Point) => {
     bbx = updateBbx({ bbx, ...pp });
   });
 
   // calculate the relative segment positions, relative to the start of the bounding box
-  edgeSegments.forEach((pp) => {
-    pp.x = (pp.x - bbx.x1) * slideSize.scale;
-    pp.y = (pp.y - bbx.y1) * slideSize.scale;
+  edgeSegments.forEach((pp: Point) => {
+    pp.x = (pp.x - (bbx.x1 ?? 0)) * slideSize.scale;
+    pp.y = (pp.y - (bbx.y1 ?? 0)) * slideSize.scale;
   });
 
   return {
     points: edgeSegments,
-    x: calcX({ slideSize, elementSize: { x1: bbx.x1 } }),
-    y: calcY({ slideSize, elementSize: { y1: bbx.y1 } }),
-    w: calcW({ elementSize: { w: bbx.x2 - bbx.x1 }, slideSize }),
-    h: calcH({ elementSize: { h: bbx.y2 - bbx.y1 }, slideSize }),
+    x: calcX({ slideSize, elementSize: { x1: bbx.x1 ?? 0 } }),
+    y: calcY({ slideSize, elementSize: { y1: bbx.y1 ?? 0 } }),
+    w: calcW({ elementSize: { w: (bbx.x2 ?? 0) - (bbx.x1 ?? 0) }, slideSize }),
+    h: calcH({ elementSize: { h: (bbx.y2 ?? 0) - (bbx.y1 ?? 0) }, slideSize }),
   };
 }
 
-function drawNodes({ slide, nodes, slideSize }) {
-  nodes.forEach((n, i) => {
-    let nodeSize = n.boundingBox();
-    let nodeStyle = n.style();
-    let nodeLocation = getNodeLocation({ nodeSize, slideSize });
+function drawNodes({
+  slide,
+  nodes,
+  slideSize,
+}: {
+  slide: PptxSlide;
+  nodes: CytoscapeCollection;
+  slideSize: SlideSize;
+}): void {
+  nodes.forEach((n: CytoscapeElement) => {
+    const nodeSize = n.boundingBox();
+    const nodeStyle = n.style();
+    const nodeLocation = getNodeLocation({ nodeSize, slideSize });
 
-    let shapeparams = {
+    const shapeparams: Record<string, any> = {
       ...getShape(nodeStyle, nodeLocation),
       ...nodeLocation,
       color: rgb2Hex(nodeStyle.color),
       fill: {
         color: rgb2Hex(nodeStyle.backgroundColor),
-        transparency: 100 - nodeStyle.backgroundOpacity * 100,
+        transparency: 100 - (nodeStyle.backgroundOpacity ?? 1) * 100,
       },
       line: {
         color: rgb2Hex(nodeStyle.borderColor),
@@ -239,52 +426,70 @@ function drawNodes({ slide, nodes, slideSize }) {
       valign: nodeStyle.textValign,
       fontSize: calcFontSize(nodeStyle.fontSize, slideSize.scale),
       margin: 0,
+      name: `node-${n.id()}`, // Add unique identifier for better PowerPoint management
     };
     if (nodeStyle.shape === "round-rectangle") {
       shapeparams.rectRadius = slideSize.scale * 10;
     }
-    slide.addText(nodeStyle.label, shapeparams);
+    slide.addText(nodeStyle.label ?? "", shapeparams);
   });
 }
 
 // Helper functions to safely get endpoints (with fallback for Node.js/headless mode)
-function getSourceEndpoint(edge) {
+function getSourceEndpoint(edge: CytoscapeElement): Point {
   try {
-    return edge.sourceEndpoint();
+    const endpoint = edge.sourceEndpoint?.();
+    if (endpoint) return endpoint;
   } catch (err) {
-    // Fallback to source node position
-    const source = edge.source();
-    return source.position();
+    // Fall through to fallback
   }
+  // Fallback to source node position
+  const source = edge.source();
+  return source.position();
 }
 
-function getTargetEndpoint(edge) {
+function getTargetEndpoint(edge: CytoscapeElement): Point {
   try {
-    return edge.targetEndpoint();
+    const endpoint = edge.targetEndpoint?.();
+    if (endpoint) return endpoint;
   } catch (err) {
-    // Fallback to target node position
-    const target = edge.target();
-    return target.position();
+    // Fall through to fallback
   }
+  // Fallback to target node position
+  const target = edge.target();
+  return target.position();
 }
 
-function getMidpoint(edge) {
+function getMidpoint(edge: CytoscapeElement): Point {
   try {
-    return edge.midpoint();
+    const midpoint = edge.midpoint?.();
+    if (midpoint) return midpoint;
   } catch (err) {
-    // Fallback to calculating midpoint from endpoints
-    const src = getSourceEndpoint(edge);
-    const tgt = getTargetEndpoint(edge);
-    return {
-      x: (src.x + tgt.x) / 2,
-      y: (src.y + tgt.y) / 2,
-    };
+    // Fall through to fallback
   }
+  // Fallback to calculating midpoint from endpoints
+  const src = getSourceEndpoint(edge);
+  const tgt = getTargetEndpoint(edge);
+  return {
+    x: (src.x + tgt.x) / 2,
+    y: (src.y + tgt.y) / 2,
+  };
 }
 
-function getLabelLocation({ slideSize, midpoint }) {
-  let x1 = midpoint.x;
-  let y1 = midpoint.y;
+function getLabelLocation({
+  slideSize,
+  midpoint,
+}: {
+  slideSize: SlideSize;
+  midpoint: Point;
+}): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  const x1 = midpoint.x;
+  const y1 = midpoint.y;
 
   return {
     x: calcX({ slideSize, elementSize: { x1 } }) - 0.5,
@@ -293,10 +498,17 @@ function getLabelLocation({ slideSize, midpoint }) {
     h: 0.1,
   };
 }
-function getEdgeLocation({ e, slideSize }) {
+
+function getEdgeLocation({
+  e,
+  slideSize,
+}: {
+  e: CytoscapeElement;
+  slideSize: SlideSize;
+}): EdgeLocation {
   const sourceEndpoint = getSourceEndpoint(e);
   const targetEndpoint = getTargetEndpoint(e);
-  let edgeSize = {
+  const edgeSize = {
     x1: sourceEndpoint.x,
     y1: sourceEndpoint.y,
     x2: targetEndpoint.x,
@@ -333,20 +545,27 @@ function getEdgeLocation({ e, slideSize }) {
     y = y + h;
     h = -h;
   }
-  return { x: x, y: y, w: w, h: h, flipH, flipV };
-}
-function getNodeLocation({ nodeSize, slideSize }) {
-  let x = calcX({ elementSize: nodeSize, slideSize });
-  let y = calcY({ elementSize: nodeSize, slideSize });
-  let w = calcW({ elementSize: nodeSize, slideSize });
-  let h = calcH({ elementSize: nodeSize, slideSize });
-
-  return { x: x, y: y, w: w, h: h };
+  return { x, y, w, h, flipH, flipV };
 }
 
-function getShape(nodeStyle, nodeLocation) {
+function getNodeLocation({
+  nodeSize,
+  slideSize,
+}: {
+  nodeSize: BoundingBox;
+  slideSize: SlideSize;
+}): NodeLocation {
+  const x = calcX({ elementSize: nodeSize, slideSize });
+  const y = calcY({ elementSize: nodeSize, slideSize });
+  const w = calcW({ elementSize: nodeSize, slideSize });
+  const h = calcH({ elementSize: nodeSize, slideSize });
+
+  return { x, y, w, h };
+}
+
+function getShape(nodeStyle: ElementStyle, nodeLocation: NodeLocation): ShapeResult {
   // translate cytoscape shapes to powerpoint shapes
-  let shapesMapping = {
+  const shapesMapping: Record<string, string> = {
     ellipse: "ellipse",
     triangle: "_triangle",
     "round-triangle": "_triangle",
@@ -373,22 +592,24 @@ function getShape(nodeStyle, nodeLocation) {
     vee: "_vee",
   };
 
-  let shape = shapesMapping[nodeStyle.shape] || "ellipse";
+  const shape = shapesMapping[nodeStyle.shape ?? "ellipse"] || "ellipse";
 
   if (shape[0] !== "_") {
-    // shape is not available in powerpoint, so create a custom shape
+    // shape is available in powerpoint
     return { shape };
   } else {
+    // shape is not available in powerpoint, so create a custom shape
     return {
       shape: "custGeom",
       points: getShapePoints(shape, nodeLocation),
     };
   }
 }
-function getShapePoints(shape, nodeLocation) {
-  let width = nodeLocation.w;
-  let height = nodeLocation.h;
-  let customShapes = {
+
+function getShapePoints(shape: string, nodeLocation: NodeLocation): Point[] {
+  const width = nodeLocation.w;
+  const height = nodeLocation.h;
+  const customShapes: Record<string, Point[]> = {
     _triangle: [
       { x: 0.0, y: 1.0 },
       { x: 0.5, y: 0.0 },
@@ -501,66 +722,109 @@ function getShapePoints(shape, nodeLocation) {
       { x: 0.0, y: 0.0 },
     ],
   };
-  let thisShape = customShapes[shape];
-  thisShape.forEach((tp) => {
+  const thisShape = customShapes[shape];
+  thisShape.forEach((tp: Point) => {
     tp.x = tp.x * width;
     tp.y = tp.y * height;
   });
   return thisShape;
 }
-function calcScale(bbx, options) {
-  let heightInch = options.height - 2 * options.marginTop;
-  let widthInch = options.width - 2 * options.marginLeft;
-  let scaleH = heightInch / bbx.h;
-  let scaleW = widthInch / bbx.w;
-  let scale = Math.min(scaleH, scaleW, 0.01);
+
+function calcScale(bbx: BoundingBox, options: Required<ExportOptions>): ScaleResult {
+  const heightInch = options.height - 2 * options.marginTop;
+  const widthInch = options.width - 2 * options.marginLeft;
+  const scaleH = heightInch / bbx.h;
+  const scaleW = widthInch / bbx.w;
+  const scale = Math.min(scaleH, scaleW, 0.01);
 
   // calculate margin to center graph in slide
-  let centerY = (options.height - scale * bbx.h) / 2;
-  let centerX = (options.width - scale * bbx.w) / 2;
+  const centerY = (options.height - scale * bbx.h) / 2;
+  const centerX = (options.width - scale * bbx.w) / 2;
   return { scale, centerY, centerX };
 }
-function calcFontSize(fontSize, scale) {
+
+function calcFontSize(fontSize: string | number | undefined, scale: number): number {
   return (px2Num(fontSize) - 5) * scale * 100;
 }
 
-function calcX({ elementSize, slideSize }) {
-  let res =
+function calcX({
+  elementSize,
+  slideSize,
+}: {
+  elementSize: { x1: number };
+  slideSize: SlideSize;
+}): number {
+  const res =
     (elementSize.x1 - slideSize.graphSize.x1) * slideSize.scale +
     slideSize.options.marginLeft;
   return res;
 }
-function calcY({ elementSize, slideSize }) {
-  let res =
+
+function calcY({
+  elementSize,
+  slideSize,
+}: {
+  elementSize: { y1: number };
+  slideSize: SlideSize;
+}): number {
+  const res =
     (elementSize.y1 - slideSize.graphSize.y1) * slideSize.scale +
     slideSize.options.marginTop;
   return res;
 }
-function calcW({ elementSize, slideSize }) {
-  let res = elementSize.w * slideSize.scale;
-  return res;
-}
-function calcH({ elementSize, slideSize }) {
-  let res = elementSize.h * slideSize.scale;
+
+function calcW({
+  elementSize,
+  slideSize,
+}: {
+  elementSize: { w: number };
+  slideSize: SlideSize;
+}): number {
+  const res = elementSize.w * slideSize.scale;
   return res;
 }
 
-function rgb2Hex(color) {
+function calcH({
+  elementSize,
+  slideSize,
+}: {
+  elementSize: { h: number };
+  slideSize: SlideSize;
+}): number {
+  const res = elementSize.h * slideSize.scale;
+  return res;
+}
+
+function rgb2Hex(color: string | undefined): string {
   if (!color) return "000000"; // Default to black if color is undefined
-  var arr = [];
-  color.replace(/[\d+\.]+/g, function (v) {
+  const arr: number[] = [];
+  color.replace(/[\d+\.]+/g, function (v: string): string {
     arr.push(parseFloat(v));
+    return v;
   });
   return arr.slice(0, 3).map(toHex).join("").toUpperCase();
 }
-function px2Num(px) {
+
+function px2Num(px: string | number | undefined): number {
   if (!px && px !== 0) return 0; // Default to 0 if px is undefined
   if (typeof px === "number") return px; // Already a number
   return parseFloat(String(px).replace("px", ""));
 }
-function toHex(int) {
-  var hex = int.toString(16);
-  return hex.length == 1 ? "0" + hex : hex;
+
+function toHex(int: number): string {
+  const hex = int.toString(16);
+  return hex.length === 1 ? "0" + hex : hex;
 }
 
 export { pptxAddSlide, pptxGetLayouts };
+export type {
+  PptxPresentation,
+  PptxSlide,
+  CytoscapeInstance,
+  CytoscapeCollection,
+  CytoscapeElement,
+  ExportOptions,
+  LayoutPreset,
+  BoundingBox,
+  Point,
+};

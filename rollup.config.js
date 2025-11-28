@@ -1,19 +1,24 @@
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
+import typescript from "@rollup/plugin-typescript";
 import pkg from "./package.json" with { type: "json" };
 
 export default [
   // browser-friendly UMD build
   {
-    input: "src/main.js",
+    input: "src/main.ts",
     output: {
       name: "pptx",
       file: pkg.browser,
       format: "umd",
     },
     plugins: [
-      resolve({ browser: true }), // so Rollup can find `ms`
-      commonjs(), // so Rollup can convert `ms` to an ES module
+      typescript({
+        tsconfig: "./tsconfig.json",
+        declaration: false, // Don't generate declarations for UMD build
+      }),
+      resolve({ browser: true }),
+      commonjs(),
     ],
   },
 
@@ -24,11 +29,21 @@ export default [
   // an array for the `output` option, where we can specify
   // `file` and `format` for each target)
   {
-    input: "src/main.js",
+    input: "src/main.ts",
     external: [],
     output: [
       { file: pkg.main, format: "cjs" },
       { file: pkg.module, format: "es" },
+    ],
+    plugins: [
+      typescript({
+        tsconfig: "./tsconfig.json",
+        declaration: true, // Generate type declarations
+        declarationDir: "./dist",
+        rootDir: "./src",
+      }),
+      resolve(),
+      commonjs(),
     ],
   },
 ];

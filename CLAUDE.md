@@ -12,18 +12,21 @@ Users install this package via `npm install cytoscape-pptx` and import it into t
 
 ## Build System
 
-The project uses Rollup to build three distribution formats:
+The project is written in **TypeScript** and uses Rollup with `@rollup/plugin-typescript` to build three distribution formats:
 
 - **UMD** (browser): `dist/pptx.umd.js`
 - **CommonJS** (Node): `dist/pptx.cjs.js`
 - **ES Module** (bundlers): `dist/pptx.esm.js`
+- **Type Definitions**: `dist/main.d.ts`
 
 Build commands:
 ```bash
-npm run build      # Build all formats
+npm run build      # Build all formats and generate type definitions
 npm run dev        # Build in watch mode
 npm test           # Run tests (runs pretest build automatically)
 ```
+
+The TypeScript configuration (`tsconfig.json`) is set to strict mode for maximum type safety.
 
 ## Testing
 
@@ -44,7 +47,7 @@ To add new tests:
 
 ### Core Components
 
-**src/main.js** - Single file containing all functionality with these key sections:
+**src/main.ts** - Single TypeScript file containing all functionality with these key sections:
 
 1. **Main API Functions** (lines 1-90):
    - `pptxAddSlide()`: Main entry point that orchestrates the entire export process
@@ -110,7 +113,15 @@ Recent changes added bidirectional arrow support (commit 7ef47f2):
 ## Dependencies
 
 - **Peer dependencies** (not bundled): `cytoscape`, `pptxgenjs` - Applications using this library must install these separately
-- **Dev dependencies for building**: `rollup`, `@rollup/plugin-commonjs`, `@rollup/plugin-node-resolve`, `@babel/eslint-parser`
+- **Dev dependencies for building**:
+  - `rollup` - Module bundler
+  - `@rollup/plugin-typescript` - TypeScript plugin for Rollup
+  - `@rollup/plugin-commonjs` - CommonJS module conversion
+  - `@rollup/plugin-node-resolve` - Node module resolution
+  - `typescript` - TypeScript compiler
+  - `tslib` - TypeScript runtime helpers
+  - `@types/node` - Node.js type definitions
+  - `@babel/eslint-parser` - ESLint parser
 - **Dev dependencies for testing**: `cytoscape`, `pptxgenjs` - Installed as dev dependencies to enable local testing
 
 ## Package Configuration
@@ -120,7 +131,24 @@ The `package.json` defines:
   - `main`: CommonJS build (`dist/pptx.cjs.js`) for Node.js
   - `module`: ES module build (`dist/pptx.esm.js`) for bundlers
   - `browser`: UMD build (`dist/pptx.umd.js`) for browsers
+  - `types`: TypeScript type definitions (`dist/main.d.ts`) for IDE autocomplete and type checking
 - **Published files**: Only the `dist/` directory is published to npm (see `files` field)
 - **Type**: Package uses `"type": "module"` for ES module support in development files (rollup.config.js)
 
 The `.cjs.js` extension ensures the CommonJS build works correctly regardless of the package type setting.
+
+## TypeScript Support
+
+The library is fully typed with comprehensive TypeScript definitions exported for consumer applications. The main exported types include:
+
+- `PptxPresentation` - PptxGenJS presentation interface
+- `PptxSlide` - PptxGenJS slide interface
+- `CytoscapeInstance` - Cytoscape graph instance
+- `CytoscapeCollection` - Collection of Cytoscape elements
+- `CytoscapeElement` - Individual node or edge
+- `ExportOptions` - Configuration options for export
+- `LayoutPreset` - Predefined slide layouts
+- `BoundingBox` - Coordinate boundaries
+- `Point` - X/Y coordinate pair
+
+TypeScript consumers will get full IntelliSense support, type checking, and inline documentation when using this library.
