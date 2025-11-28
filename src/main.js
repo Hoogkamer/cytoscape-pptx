@@ -1,4 +1,4 @@
-function pptxAddSlide(presentation, cy, { options }) {
+function pptxAddSlide(presentation, cy, { options } = {}) {
   // calculate sizes and scale
   let graphSize = cy.elements().boundingBox();
   let thisOptions = {
@@ -124,7 +124,15 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
     };
     // if it is a segmented edge, then draw a custom shape, otherwise a normal line
 
-    if (segmentedEdges && e.segmentPoints()) {
+    // Safely get segment points (may not work in headless mode)
+    let segmentPoints = null;
+    try {
+      segmentPoints = e.segmentPoints();
+    } catch (err) {
+      // Ignore error in headless mode
+    }
+
+    if (segmentedEdges && segmentPoints) {
       slide.addShape("custGeom", {
         ...getEdgeSegments({ e, slideSize }),
         line: lineprop,
@@ -138,13 +146,24 @@ function drawEdges({ slide, edges, slideSize, segmentedEdges }) {
 
     // if edge contains a name, add a textbox for it
     if (edgeStyle.label) {
-      let midpoint = e.midpoint();
+      let midpoint = getMidpoint(e);
       // if it is a segmented edge, but we draw it as a straight line, recalculate the midpoint for the label
       // cpntrol points (curved edges) are not supported yet, and drawn as straight lines
-      if ((!segmentedEdges && e.segmentPoints()) || e.controlPoints()) {
+
+      // Safely get control points (may not work in headless mode)
+      let controlPoints = null;
+      try {
+        controlPoints = e.controlPoints();
+      } catch (err) {
+        // Ignore error in headless mode
+      }
+
+      if ((!segmentedEdges && segmentPoints) || controlPoints) {
+        const src = getSourceEndpoint(e);
+        const tgt = getTargetEndpoint(e);
         midpoint = {
-          x: (e.sourceEndpoint().x + e.targetEndpoint().x) / 2,
-          y: (e.sourceEndpoint().y + e.targetEndpoint().y) / 2,
+          x: (src.x + tgt.x) / 2,
+          y: (src.y + tgt.y) / 2,
         };
       }
       slide.addText(edgeStyle.label, {
@@ -168,9 +187,14 @@ function updateBbx({ bbx, x, y }) {
 }
 function getEdgeSegments({ e, slideSize }) {
   let edgeSegments = [];
-  edgeSegments.push({ ...e.sourceEndpoint() });
-  e.segmentPoints().forEach((sp) => edgeSegments.push({ ...sp }));
-  edgeSegments.push({ ...e.targetEndpoint() });
+  edgeSegments.push({ ...getSourceEndpoint(e) });
+  // segmentPoints will exist if we're calling this function
+  try {
+    e.segmentPoints().forEach((sp) => edgeSegments.push({ ...sp }));
+  } catch (err) {
+    // If segmentPoints fails, segments array will only have source and target
+  }
+  edgeSegments.push({ ...getTargetEndpoint(e) });
 
   //calculate the bounding box
   let bbx = {};
@@ -223,6 +247,41 @@ function drawNodes({ slide, nodes, slideSize }) {
   });
 }
 
+// Helper functions to safely get endpoints (with fallback for Node.js/headless mode)
+function getSourceEndpoint(edge) {
+  try {
+    return edge.sourceEndpoint();
+  } catch (err) {
+    // Fallback to source node position
+    const source = edge.source();
+    return source.position();
+  }
+}
+
+function getTargetEndpoint(edge) {
+  try {
+    return edge.targetEndpoint();
+  } catch (err) {
+    // Fallback to target node position
+    const target = edge.target();
+    return target.position();
+  }
+}
+
+function getMidpoint(edge) {
+  try {
+    return edge.midpoint();
+  } catch (err) {
+    // Fallback to calculating midpoint from endpoints
+    const src = getSourceEndpoint(edge);
+    const tgt = getTargetEndpoint(edge);
+    return {
+      x: (src.x + tgt.x) / 2,
+      y: (src.y + tgt.y) / 2,
+    };
+  }
+}
+
 function getLabelLocation({ slideSize, midpoint }) {
   let x1 = midpoint.x;
   let y1 = midpoint.y;
@@ -235,13 +294,15 @@ function getLabelLocation({ slideSize, midpoint }) {
   };
 }
 function getEdgeLocation({ e, slideSize }) {
+  const sourceEndpoint = getSourceEndpoint(e);
+  const targetEndpoint = getTargetEndpoint(e);
   let edgeSize = {
-    x1: e.sourceEndpoint().x,
-    y1: e.sourceEndpoint().y,
-    x2: e.targetEndpoint().x,
-    y2: e.targetEndpoint().y,
-    h: e.targetEndpoint().y - e.sourceEndpoint().y,
-    w: e.targetEndpoint().x - e.sourceEndpoint().x,
+    x1: sourceEndpoint.x,
+    y1: sourceEndpoint.y,
+    x2: targetEndpoint.x,
+    y2: targetEndpoint.y,
+    h: targetEndpoint.y - sourceEndpoint.y,
+    w: targetEndpoint.x - sourceEndpoint.x,
   };
   let x = calcX({ elementSize: edgeSize, slideSize });
   let y = calcY({ elementSize: edgeSize, slideSize });
@@ -312,7 +373,7 @@ function getShape(nodeStyle, nodeLocation) {
     vee: "_vee",
   };
 
-  let shape = shapesMapping[nodeStyle.shape];
+  let shape = shapesMapping[nodeStyle.shape] || "ellipse";
 
   if (shape[0] !== "_") {
     // shape is not available in powerpoint, so create a custom shape
@@ -485,6 +546,7 @@ function calcH({ elementSize, slideSize }) {
 }
 
 function rgb2Hex(color) {
+  if (!color) return "000000"; // Default to black if color is undefined
   var arr = [];
   color.replace(/[\d+\.]+/g, function (v) {
     arr.push(parseFloat(v));
@@ -492,7 +554,9 @@ function rgb2Hex(color) {
   return arr.slice(0, 3).map(toHex).join("").toUpperCase();
 }
 function px2Num(px) {
-  return parseFloat(px.replace("px", ""));
+  if (!px && px !== 0) return 0; // Default to 0 if px is undefined
+  if (typeof px === "number") return px; // Already a number
+  return parseFloat(String(px).replace("px", ""));
 }
 function toHex(int) {
   var hex = int.toString(16);

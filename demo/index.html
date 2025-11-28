@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cytoscape PPTX Export Demo</title>
+    <script src="https://unpkg.com/cytoscape@3.30.1/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="../dist/pptx.umd.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        #cy {
+            width: 100%;
+            height: 500px;
+            background: #fafafa;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select, input[type="number"], input[type="checkbox"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        select {
+            min-width: 150px;
+        }
+
+        input[type="number"] {
+            width: 80px;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper label {
+            cursor: pointer;
+            text-transform: none;
+            letter-spacing: normal;
+            font-weight: normal;
+            color: #333;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-left: auto;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .info strong {
+            color: #1976d2;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success {
+            background: #c8e6c9;
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+
+        .status.error {
+            background: #ffcdd2;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            button {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Cytoscape to PowerPoint Export Demo</h1>
+            <p>Visualize your graph and export it to PowerPoint with custom options</p>
+        </div>
+
+        <div class="content">
+            <div id="cy"></div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Layout Preset</label>
+                    <select id="layoutSelect">
+                        <option value="default">Default (16x9)</option>
+                        <option value="16x10">16x10</option>
+                        <option value="4x3">4x3</option>
+                        <option value="WIDE">Wide</option>
+                        <option value="A3">A3</option>
+                        <option value="A4">A4</option>
+                        <option value="AUTO">Auto Size</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                </div>
+
+                <div class="control-group" id="widthControl" style="display: none;">
+                    <label>Width (inches)</label>
+                    <input type="number" id="widthInput" value="10" min="1" max="20" step="0.5">
+                </div>
+
+                <div class="control-group" id="heightControl" style="display: none;">
+                    <label>Height (inches)</label>
+                    <input type="number" id="heightInput" value="7.5" min="1" max="20" step="0.5">
+                </div>
+
+                <div class="control-group">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="segmentedEdges" checked>
+                        <label for="segmentedEdges">Segmented Edges</label>
+                    </div>
+                </div>
+
+                <button id="exportBtn">📥 Export to PowerPoint</button>
+            </div>
+
+            <div id="status" class="status"></div>
+
+            <div class="info">
+                <strong>How to use:</strong> The graph above shows a sample Cytoscape visualization.
+                Customize the export options and click "Export to PowerPoint" to download a .pptx file
+                containing your graph. The exported presentation will maintain all styling, colors, and layout.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Cytoscape graph
+        const cy = cytoscape({
+            container: document.getElementById('cy'),
+
+            elements: [
+                // Nodes
+                { data: { id: 'a', label: 'Node A' } },
+                { data: { id: 'b', label: 'Node B' } },
+                { data: { id: 'c', label: 'Node C' } },
+                { data: { id: 'd', label: 'Node D' } },
+                { data: { id: 'e', label: 'Node E' } },
+                { data: { id: 'f', label: 'Node F' } },
+
+                // Edges
+                { data: { id: 'ab', source: 'a', target: 'b', label: 'connects' } },
+                { data: { id: 'bc', source: 'b', target: 'c' } },
+                { data: { id: 'cd', source: 'c', target: 'd' } },
+                { data: { id: 'de', source: 'd', target: 'e' } },
+                { data: { id: 'ef', source: 'e', target: 'f' } },
+                { data: { id: 'fa', source: 'f', target: 'a' } },
+                { data: { id: 'bd', source: 'b', target: 'd' } },
+                { data: { id: 'ce', source: 'c', target: 'e' } },
+            ],
+
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#667eea',
+                        'label': 'data(label)',
+                        'color': '#fff',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'width': 80,
+                        'height': 80,
+                        'font-size': 16,
+                        'font-weight': 'bold',
+                        'border-width': 3,
+                        'border-color': '#764ba2'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 4,
+                        'line-color': '#999',
+                        'target-arrow-color': '#999',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'label': 'data(label)',
+                        'font-size': 12,
+                        'color': '#666',
+                        'text-background-color': '#fff',
+                        'text-background-opacity': 0.8,
+                        'text-background-padding': 3
+                    }
+                }
+            ],
+
+            layout: {
+                name: 'circle',
+                animate: true,
+                animationDuration: 500
+            }
+        });
+
+        // UI Controls
+        const layoutSelect = document.getElementById('layoutSelect');
+        const widthControl = document.getElementById('widthControl');
+        const heightControl = document.getElementById('heightControl');
+        const widthInput = document.getElementById('widthInput');
+        const heightInput = document.getElementById('heightInput');
+        const segmentedEdgesCheckbox = document.getElementById('segmentedEdges');
+        const exportBtn = document.getElementById('exportBtn');
+        const statusDiv = document.getElementById('status');
+
+        // Show/hide custom size inputs
+        layoutSelect.addEventListener('change', function() {
+            const isCustom = this.value === 'custom';
+            widthControl.style.display = isCustom ? 'flex' : 'none';
+            heightControl.style.display = isCustom ? 'flex' : 'none';
+        });
+
+        // Get available layouts from the library
+        const layouts = pptx.pptxGetLayouts();
+
+        // Export function
+        exportBtn.addEventListener('click', function() {
+            try {
+                statusDiv.style.display = 'none';
+                exportBtn.disabled = true;
+                exportBtn.textContent = '⏳ Exporting...';
+
+                // Create presentation
+                const pres = new PptxGenJS();
+
+                // Get selected layout or custom options
+                let options;
+                const selectedLayout = layoutSelect.value;
+
+                if (selectedLayout === 'custom') {
+                    options = {
+                        width: parseFloat(widthInput.value),
+                        height: parseFloat(heightInput.value),
+                        marginTop: 0.5,
+                        marginLeft: 0.5,
+                        segmentedEdges: segmentedEdgesCheckbox.checked
+                    };
+                } else if (selectedLayout === 'default') {
+                    options = {
+                        segmentedEdges: segmentedEdgesCheckbox.checked
+                    };
+                } else {
+                    const layout = layouts.find(l => l.name === selectedLayout);
+                    options = {
+                        ...layout,
+                        segmentedEdges: segmentedEdgesCheckbox.checked
+                    };
+                }
+
+                // Add slide with the graph
+                pptx.pptxAddSlide(pres, cy, { options: options });
+
+                // Save the presentation
+                const fileName = `cytoscape-export-${Date.now()}.pptx`;
+                pres.writeFile({ fileName: fileName }).then(() => {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✅ Successfully exported to ${fileName}`;
+                    statusDiv.style.display = 'block';
+                    exportBtn.disabled = false;
+                    exportBtn.textContent = '📥 Export to PowerPoint';
+                }).catch((error) => {
+                    throw error;
+                });
+
+            } catch (error) {
+                console.error('Export failed:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Export failed: ${error.message}`;
+                statusDiv.style.display = 'block';
+                exportBtn.disabled = false;
+                exportBtn.textContent = '📥 Export to PowerPoint';
+            }
+        });
+    </script>
+</body>
+</html>
